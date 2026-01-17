@@ -1,58 +1,143 @@
-"use client"
+"use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from "recharts"
-
-const trafficData = [
-  { time: "00:00", legitimate: 1200, bot: 150 },
-  { time: "02:00", legitimate: 800, bot: 90 },
-  { time: "04:00", legitimate: 600, bot: 70 },
-  { time: "06:00", legitimate: 900, bot: 110 },
-  { time: "08:00", legitimate: 1800, bot: 200 },
-  { time: "10:00", legitimate: 2400, bot: 350 },
-  { time: "12:00", legitimate: 2800, bot: 420 },
-  { time: "14:00", legitimate: 2600, bot: 380 },
-  { time: "16:00", legitimate: 2900, bot: 450 },
-  { time: "18:00", legitimate: 2200, bot: 280 },
-  { time: "20:00", legitimate: 1600, bot: 180 },
-  { time: "22:00", legitimate: 1400, bot: 160 },
-]
+import { useMemo, useState } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Legend, ResponsiveContainer } from "recharts";
+import { useLiveStats } from "@/lib/useLiveStats";
 
 const chartConfig = {
-  legitimate: {
-    label: "Legitimate Traffic",
-    color: "hsl(210, 100%, 50%)",
-  },
-  bot: {
-    label: "Bot Traffic",
-    color: "hsl(0, 85%, 55%)",
-  },
-}
+  total: { label: "Total", color: "hsl(210, 100%, 50%)" },
+  allow: { label: "Allow", color: "hsl(145, 70%, 45%)" },
+  bot: { label: "Bot", color: "hsl(0, 85%, 55%)" },
+};
+
+type Point = {
+  t: number;
+  time: string;
+  total: number;
+  allow: number;
+  bot: number;
+};
+
+type Mode = "live" | "history";
 
 export function TrafficChart() {
+  // fast refresh so live feels live
+  const { data, error } = useLiveStats(250);
+
+  const liveData: Point[] = data?.series10s ?? [];
+  const historyData: Point[] = data?.series10m ?? [];
+
+  const [mode, setMode] = useState<Mode>("live");
+
+  const last10 = useMemo(() => {
+    return liveData.reduce(
+      (acc, p) => {
+        acc.total += p.total;
+        acc.allow += p.allow;
+        acc.bot += p.bot;
+        return acc;
+      },
+      { total: 0, allow: 0, bot: 0 }
+    );
+  }, [liveData]);
+
+  const chartData = mode === "live" ? liveData : historyData;
+
+  const description =
+    mode === "live" ? "Live (last 10 seconds)" : "History (last 10 minutes)";
+
+  const heightClass = mode === "live" ? "h-[260px]" : "h-[360px]";
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Traffic Overview</CardTitle>
-        <CardDescription>Last 24 Hours</CardDescription>
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <CardTitle>Traffic Overview</CardTitle>
+          <CardDescription>{description}</CardDescription>
+        </div>
+
+        {/* Toggle buttons */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setMode("live")}
+            className={`rounded-md border px-3 py-1 text-sm transition-colors ${
+              mode === "live"
+                ? "bg-primary text-primary-foreground"
+                : "bg-background hover:bg-muted"
+            }`}
+          >
+            Live (10s)
+          </button>
+          <button
+            onClick={() => setMode("history")}
+            className={`rounded-md border px-3 py-1 text-sm transition-colors ${
+              mode === "history"
+                ? "bg-primary text-primary-foreground"
+                : "bg-background hover:bg-muted"
+            }`}
+          >
+            History (10m)
+          </button>
+        </div>
       </CardHeader>
+
       <CardContent>
-        <ChartContainer config={chartConfig} className="h-[350px] w-full">
+        {error ? (
+          <div className="mb-4 rounded-md border p-3 text-sm text-red-500">
+            Stats error: {error}
+          </div>
+        ) : null}
+
+        {/* KPIs only shown in Live mode (since they are “last 10s”) */}
+        {mode === "live" ? (
+          <div className="mb-4 flex flex-wrap gap-3 text-sm text-muted-foreground">
+            <span className="rounded-md border px-2 py-1">
+              Last 10s Total: <b className="text-foreground">{last10.total}</b>
+            </span>
+            <span className="rounded-md border px-2 py-1">
+              Allow: <b className="text-foreground">{last10.allow}</b>
+            </span>
+            <span className="rounded-md border px-2 py-1">
+              Bot: <b className="text-foreground">{last10.bot}</b>
+            </span>
+          </div>
+        ) : null}
+
+        <ChartContainer config={chartConfig} className={`${heightClass} w-full`}>
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={trafficData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+            <LineChart data={chartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-              <XAxis dataKey="time" tick={{ fontSize: 12 }} className="text-muted-foreground" />
-              <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" />
+              <XAxis
+                dataKey="time"
+                tick={{ fontSize: 12 }}
+                className="text-muted-foreground"
+                interval={mode === "live" ? 0 : 30}
+              />
+              <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" allowDecimals={false} />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Legend />
+
               <Line
                 type="monotone"
-                dataKey="legitimate"
-                stroke={chartConfig.legitimate.color}
+                dataKey="total"
+                stroke={chartConfig.total.color}
                 strokeWidth={2}
                 dot={false}
-                name="Legitimate Traffic"
+                name="Total"
+                isAnimationActive={mode === "live"}
+                animationDuration={200}
+              />
+              <Line
+                type="monotone"
+                dataKey="allow"
+                stroke={chartConfig.allow.color}
+                strokeWidth={2}
+                dot={false}
+                name="Allow"
+                isAnimationActive={mode === "live"}
+                animationDuration={200}
               />
               <Line
                 type="monotone"
@@ -60,12 +145,14 @@ export function TrafficChart() {
                 stroke={chartConfig.bot.color}
                 strokeWidth={2}
                 dot={false}
-                name="Bot Traffic"
+                name="Bot"
+                isAnimationActive={mode === "live"}
+                animationDuration={200}
               />
             </LineChart>
           </ResponsiveContainer>
         </ChartContainer>
       </CardContent>
     </Card>
-  )
+  );
 }

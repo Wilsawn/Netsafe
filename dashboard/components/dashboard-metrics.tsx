@@ -1,45 +1,54 @@
-import { Card, CardContent } from "@/components/ui/card"
-import { TrendingUp, Activity, Shield, Zap } from "lucide-react"
+"use client";
 
-const metrics = [
-  {
-    label: "Total Requests",
-    value: "1,284,392",
-    icon: TrendingUp,
-  },
-  {
-    label: "Requests/Second",
-    value: "2,847",
-    icon: Activity,
-  },
-  {
-    label: "Bot Detection Rate",
-    value: "12.4%",
-    icon: Shield,
-  },
-  {
-    label: "Avg Response Time",
-    value: "42ms",
-    icon: Zap,
-  },
-]
+import { Card, CardContent } from "@/components/ui/card";
+import { TrendingUp, Activity, Shield, Zap } from "lucide-react";
+import { useLiveStats } from "@/lib/useLiveStats";
+
+function fmt(n: number) {
+  return n.toLocaleString();
+}
 
 export function DashboardMetrics() {
+  const { data, error } = useLiveStats(1000);
+
+  const totalRequests = (data?.totals.ALLOW || 0) + (data?.totals.REROUTE || 0) + (data?.totals.BLOCK || 0);
+  const botRequests = (data?.totals.BLOCK || 0) + (data?.totals.REROUTE || 0);
+  const botPct = totalRequests > 0 ? (botRequests / totalRequests) * 100 : 0;
+
+  // We don't have true RPS/latency yet — show derived/placeholder values honestly
+  const approxRps = data ? Math.min(9999, data.recent.length) : 0;
+  const avgRespMs = 42; // keep as placeholder until we forward to real backends + measure
+
+  const metrics = [
+    { label: "Total Requests", value: fmt(totalRequests), icon: TrendingUp },
+    { label: "Requests/Second", value: data ? `${approxRps}` : "—", icon: Activity },
+    { label: "Bot Detection Rate", value: `${botPct.toFixed(1)}%`, icon: Shield },
+    { label: "Avg Response Time", value: `${avgRespMs}ms`, icon: Zap },
+  ];
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      {metrics.map((metric) => (
-        <Card key={metric.label}>
-          <CardContent className="flex items-center gap-4 p-6">
-            <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-              <metric.icon className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-card-foreground">{metric.value}</p>
-              <p className="text-sm text-muted-foreground">{metric.label}</p>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+    <div>
+      {error ? (
+        <div className="mb-4 rounded-md border p-3 text-sm text-red-500">
+          Stats error: {error}
+        </div>
+      ) : null}
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {metrics.map((metric) => (
+          <Card key={metric.label}>
+            <CardContent className="flex items-center gap-4 p-6">
+              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+                <metric.icon className="h-6 w-6 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-card-foreground">{metric.value}</p>
+                <p className="text-sm text-muted-foreground">{metric.label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
-  )
+  );
 }

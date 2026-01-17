@@ -62,6 +62,9 @@ export async function POST(request) {
     const body = await request.json();
     const flow = body?.flow;
 
+    // ✅ meta is what your python sender uses: {src_ip, path, ua, ...}
+    const meta = body?.meta ?? null;
+
     const attack_score = scoreFlow(flow);
     const decision = decide(attack_score);
 
@@ -79,6 +82,9 @@ export async function POST(request) {
         attack_score,
         decision,
         chosen_backend,
+
+        // ✅ forward meta so /api/log can store src_ip/path/ua
+        meta,
       }),
     });
 
@@ -94,7 +100,7 @@ export async function POST(request) {
 export async function GET() {
   return Response.json({
     ok: true,
-    message: "POST { flow: {...} } to get attack_score + decision + chosen_backend",
+    message: "POST { flow: {...}, meta: {...} } to get attack_score + decision + chosen_backend",
     feature_order: FEATURE_ORDER,
   });
 }

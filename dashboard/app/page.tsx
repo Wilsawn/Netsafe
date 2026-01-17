@@ -2,6 +2,7 @@ import { Sidebar } from "@/components/sidebar"
 import { DashboardMetrics } from "@/components/dashboard-metrics"
 import { TrafficChart } from "@/components/traffic-chart"
 import { RecentRequestsTable } from "@/components/recent-requests-table"
+import { BackendStatusCards } from "@/components/backend-status-cards";
 
 export default function DashboardPage() {
   return (
@@ -21,6 +22,10 @@ export default function DashboardPage() {
 
         <div className="mt-8">
           <RecentRequestsTable />
+        </div>
+
+        <div className="mt-8">
+          <BackendStatusCards />
         </div>
       </main>
     </div>

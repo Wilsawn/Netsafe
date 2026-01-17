@@ -11,6 +11,11 @@ export async function POST(req) {
       attack_score: Number(entry.attack_score),
       decision: entry.decision,
       chosen_backend: entry.chosen_backend ?? null,
+
+      // ✅ use || so "" doesn't win
+      src_ip: entry.src_ip || entry.meta?.src_ip || null,
+      path: entry.path || entry.meta?.path || null,
+      ua: entry.ua || entry.meta?.ua || null,
     });
 
     return Response.json({ ok: true });

@@ -1,269 +1,152 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Search, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react"
+import { useMemo, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Search, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { useLiveStats } from "@/lib/useLiveStats";
 
-interface LogEntry {
-  id: string
-  timestamp: string
-  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH"
-  path: string
-  ip: string
-  userAgent: string
-  backend: string
-  responseTime: number
-  status: number
-  botScore: number | null
-  action: "Allowed" | "Blocked"
+type TrafficFilter = "all" | "bot" | "legitimate";
+type StatusFilter = "all" | "2xx" | "4xx" | "5xx";
+
+function formatTime(iso: string) {
+  const d = new Date(iso);
+  return d.toLocaleTimeString([], { hour12: false });
 }
 
-const mockLogs: LogEntry[] = [
-  {
-    id: "1",
-    timestamp: "2024-01-15 14:32:05.234",
-    method: "GET",
-    path: "/api/users",
-    ip: "192.168.1.45",
-    userAgent:
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    backend: "backend-1",
-    responseTime: 45,
-    status: 200,
-    botScore: null,
-    action: "Allowed",
-  },
-  {
-    id: "2",
-    timestamp: "2024-01-15 14:32:04.891",
-    method: "POST",
-    path: "/api/login",
-    ip: "45.33.32.156",
-    userAgent: "python-requests/2.28.1",
-    backend: "backend-2",
-    responseTime: 320,
-    status: 403,
-    botScore: 92,
-    action: "Blocked",
-  },
-  {
-    id: "3",
-    timestamp: "2024-01-15 14:32:04.567",
-    method: "GET",
-    path: "/api/products",
-    ip: "10.0.0.123",
-    userAgent:
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15",
-    backend: "backend-1",
-    responseTime: 78,
-    status: 200,
-    botScore: null,
-    action: "Allowed",
-  },
-  {
-    id: "4",
-    timestamp: "2024-01-15 14:32:03.234",
-    method: "DELETE",
-    path: "/api/sessions/abc123",
-    ip: "192.168.1.78",
-    userAgent:
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    backend: "backend-3",
-    responseTime: 156,
-    status: 204,
-    botScore: null,
-    action: "Allowed",
-  },
-  {
-    id: "5",
-    timestamp: "2024-01-15 14:32:02.891",
-    method: "GET",
-    path: "/api/search?q=shoes",
-    ip: "185.220.101.45",
-    userAgent: "Scrapy/2.11.0 (+https://scrapy.org)",
-    backend: "backend-2",
-    responseTime: 512,
-    status: 403,
-    botScore: 98,
-    action: "Blocked",
-  },
-  {
-    id: "6",
-    timestamp: "2024-01-15 14:32:01.456",
-    method: "PUT",
-    path: "/api/users/profile",
-    ip: "10.0.0.89",
-    userAgent:
-      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-    backend: "backend-1",
-    responseTime: 234,
-    status: 200,
-    botScore: null,
-    action: "Allowed",
-  },
-  {
-    id: "7",
-    timestamp: "2024-01-15 14:32:00.123",
-    method: "GET",
-    path: "/api/inventory",
-    ip: "23.129.64.210",
-    userAgent: "curl/8.1.2",
-    backend: "backend-3",
-    responseTime: 89,
-    status: 403,
-    botScore: 85,
-    action: "Blocked",
-  },
-  {
-    id: "8",
-    timestamp: "2024-01-15 14:31:59.789",
-    method: "POST",
-    path: "/api/orders",
-    ip: "192.168.1.102",
-    userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0",
-    backend: "backend-2",
-    responseTime: 178,
-    status: 201,
-    botScore: null,
-    action: "Allowed",
-  },
-  {
-    id: "9",
-    timestamp: "2024-01-15 14:31:58.456",
-    method: "PATCH",
-    path: "/api/cart/items",
-    ip: "10.0.0.56",
-    userAgent:
-      "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.144 Mobile Safari/537.36",
-    backend: "backend-1",
-    responseTime: 67,
-    status: 200,
-    botScore: null,
-    action: "Allowed",
-  },
-  {
-    id: "10",
-    timestamp: "2024-01-15 14:31:57.123",
-    method: "GET",
-    path: "/api/recommendations",
-    ip: "178.62.43.211",
-    userAgent: "Go-http-client/1.1",
-    backend: "backend-3",
-    responseTime: 445,
-    status: 429,
-    botScore: 76,
-    action: "Blocked",
-  },
-]
-
-function getMethodBadgeClass(method: string): string {
-  switch (method) {
-    case "GET":
-      return "bg-blue-500/15 text-blue-600 dark:text-blue-400 border-blue-500/30"
-    case "POST":
-      return "bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30"
-    case "PUT":
-      return "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border-yellow-500/30"
-    case "DELETE":
-      return "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30"
-    case "PATCH":
-      return "bg-purple-500/15 text-purple-600 dark:text-purple-400 border-purple-500/30"
-    default:
-      return "bg-muted text-muted-foreground"
-  }
-}
-
-function getResponseTimeClass(time: number): string {
-  if (time < 100) return "text-green-600 dark:text-green-400"
-  if (time < 300) return "text-yellow-600 dark:text-yellow-400"
-  return "text-red-600 dark:text-red-400"
+// Your system doesn’t have real HTTP status, so we map decision -> status-ish
+function decisionToStatus(decision: string): number {
+  if (decision === "ALLOW") return 200;
+  if (decision === "REROUTE") return 307; // temp redirect-ish
+  if (decision === "BLOCK") return 403;
+  return 200;
 }
 
 function getStatusBadgeClass(status: number): string {
-  if (status >= 200 && status < 300) return "bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30"
-  if (status >= 400 && status < 500) return "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30"
-  if (status >= 500) return "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30"
-  return "bg-muted text-muted-foreground"
+  if (status >= 200 && status < 300) return "bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30";
+  if (status >= 300 && status < 400) return "bg-yellow-500/15 text-yellow-600 dark:text-yellow-400 border-yellow-500/30";
+  if (status >= 400 && status < 500) return "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30";
+  if (status >= 500) return "bg-orange-500/15 text-orange-600 dark:text-orange-400 border-orange-500/30";
+  return "bg-muted text-muted-foreground";
 }
 
-function LogRow({ log }: { log: LogEntry }) {
-  const [isOpen, setIsOpen] = useState(false)
+function actionBadge(decision: string) {
+  const isAllowed = decision === "ALLOW";
+  return (
+    <Badge
+      variant="outline"
+      className={
+        isAllowed
+          ? "bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30"
+          : "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30"
+      }
+    >
+      {isAllowed ? "Allowed" : "Blocked"}
+    </Badge>
+  );
+}
+
+function decisionBadge(decision: string) {
+  if (decision === "BLOCK") return <Badge variant="destructive">BLOCK</Badge>;
+  if (decision === "REROUTE") return <Badge variant="secondary">REROUTE</Badge>;
+  return <Badge variant="outline" className="border-green-500 text-green-600 dark:text-green-400">ALLOW</Badge>;
+}
+
+function botScorePct(attackScore: number): number {
+  const n = Number.isFinite(attackScore) ? attackScore : 0;
+  return Math.max(0, Math.min(100, Math.round(n * 100)));
+}
+
+function LogRow({
+  log,
+  index,
+}: {
+  log: {
+    ts: string;
+    attack_score: number;
+    decision: string;
+    chosen_backend: string | null;
+    src_ip?: string | null;
+    path?: string | null;
+    ua?: string | null;
+  };
+  index: number;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const status = decisionToStatus(log.decision);
+  const ip = log.src_ip ?? "—";
+  const path = log.path ?? "—";
+  const ua = log.ua ?? "—";
+  const score = Number.isFinite(log.attack_score) ? log.attack_score : 0;
+  const scorePct = botScorePct(score);
 
   return (
     <Collapsible open={isOpen} onOpenChange={setIsOpen}>
       <CollapsibleTrigger asChild>
-        <TableRow className="cursor-pointer hover:bg-muted/50 transition-colors">
-          <TableCell className="font-mono text-xs text-muted-foreground">{log.timestamp}</TableCell>
+        <TableRow className={`cursor-pointer hover:bg-muted/50 transition-colors ${index % 2 === 0 ? "bg-muted/20" : ""}`}>
+          <TableCell className="font-mono text-xs text-muted-foreground">{formatTime(log.ts)}</TableCell>
+
+          <TableCell className="font-mono text-sm max-w-[240px] truncate">{path}</TableCell>
+
+          <TableCell className="font-mono text-sm">{ip}</TableCell>
+
+          <TableCell className="max-w-[220px] truncate text-sm text-muted-foreground">{ua}</TableCell>
+
+          <TableCell className="font-mono text-sm">{log.chosen_backend ?? "—"}</TableCell>
+
+          <TableCell className="font-mono text-sm">{score.toFixed(3)}</TableCell>
+
+          <TableCell>{decisionBadge(log.decision)}</TableCell>
+
           <TableCell>
-            <Badge variant="outline" className={getMethodBadgeClass(log.method)}>
-              {log.method}
+            <Badge variant="outline" className={getStatusBadgeClass(status)}>
+              {status}
             </Badge>
           </TableCell>
-          <TableCell className="font-mono text-sm max-w-[200px] truncate">{log.path}</TableCell>
-          <TableCell className="font-mono text-sm">{log.ip}</TableCell>
-          <TableCell className="max-w-[150px] truncate text-sm text-muted-foreground">{log.userAgent}</TableCell>
-          <TableCell className="text-sm">{log.backend}</TableCell>
-          <TableCell className={`font-mono text-sm ${getResponseTimeClass(log.responseTime)}`}>
-            {log.responseTime}ms
-          </TableCell>
+
           <TableCell>
-            <Badge variant="outline" className={getStatusBadgeClass(log.status)}>
-              {log.status}
-            </Badge>
-          </TableCell>
-          <TableCell>
-            {log.botScore !== null ? (
-              <div className="flex items-center gap-2">
-                <div className="h-2 w-16 rounded-full bg-muted overflow-hidden">
-                  <div className="h-full bg-red-500 rounded-full" style={{ width: `${log.botScore}%` }} />
-                </div>
-                <span className="text-xs text-muted-foreground">{log.botScore}%</span>
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-20 rounded-full bg-muted overflow-hidden">
+                <div className="h-full bg-red-500 rounded-full" style={{ width: `${scorePct}%` }} />
               </div>
-            ) : (
-              <span className="text-xs text-muted-foreground">-</span>
-            )}
+              <span className="text-xs text-muted-foreground">{scorePct}%</span>
+            </div>
           </TableCell>
+
+          <TableCell>{actionBadge(log.decision)}</TableCell>
+
           <TableCell>
-            <Badge
-              variant="outline"
-              className={
-                log.action === "Allowed"
-                  ? "bg-green-500/15 text-green-600 dark:text-green-400 border-green-500/30"
-                  : "bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30"
-              }
-            >
-              {log.action}
-            </Badge>
-          </TableCell>
-          <TableCell>
-            <ChevronDown
-              className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`}
-            />
+            <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${isOpen ? "rotate-180" : ""}`} />
           </TableCell>
         </TableRow>
       </CollapsibleTrigger>
+
       <CollapsibleContent asChild>
         <TableRow className="bg-muted/30 hover:bg-muted/30">
           <TableCell colSpan={11} className="py-4">
             <div className="space-y-2 text-sm">
               <div>
                 <span className="font-medium text-foreground">Full User Agent:</span>
-                <p className="mt-1 font-mono text-xs text-muted-foreground break-all">{log.userAgent}</p>
+                <p className="mt-1 font-mono text-xs text-muted-foreground break-all">{ua}</p>
               </div>
-              <div className="flex gap-8">
+              <div className="flex flex-wrap gap-6">
                 <div>
-                  <span className="font-medium text-foreground">Request ID:</span>
-                  <span className="ml-2 font-mono text-muted-foreground">{log.id}</span>
+                  <span className="font-medium text-foreground">Timestamp:</span>
+                  <span className="ml-2 font-mono text-muted-foreground">{log.ts}</span>
                 </div>
                 <div>
                   <span className="font-medium text-foreground">Full Path:</span>
-                  <span className="ml-2 font-mono text-muted-foreground">{log.path}</span>
+                  <span className="ml-2 font-mono text-muted-foreground">{path}</span>
+                </div>
+                <div>
+                  <span className="font-medium text-foreground">IP:</span>
+                  <span className="ml-2 font-mono text-muted-foreground">{ip}</span>
                 </div>
               </div>
             </div>
@@ -271,33 +154,58 @@ function LogRow({ log }: { log: LogEntry }) {
         </TableRow>
       </CollapsibleContent>
     </Collapsible>
-  )
+  );
 }
 
 export function RequestLogsTable() {
-  const [trafficFilter, setTrafficFilter] = useState("all")
-  const [statusFilter, setStatusFilter] = useState("all")
-  const [searchQuery, setSearchQuery] = useState("")
-  const [currentPage, setCurrentPage] = useState(1)
+  const { data, error } = useLiveStats(500);
 
-  const filteredLogs = mockLogs.filter((log) => {
-    if (trafficFilter === "bot" && log.botScore === null) return false
-    if (trafficFilter === "legitimate" && log.botScore !== null) return false
+  const [trafficFilter, setTrafficFilter] = useState<TrafficFilter>("all");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
 
-    if (statusFilter === "2xx" && (log.status < 200 || log.status >= 300)) return false
-    if (statusFilter === "4xx" && (log.status < 400 || log.status >= 500)) return false
-    if (statusFilter === "5xx" && log.status < 500) return false
+  const logs = data?.recent ?? [];
+  const totalRequests = data?.recent_count ?? logs.length;
 
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      return log.ip.toLowerCase().includes(query) || log.path.toLowerCase().includes(query)
-    }
+  const filteredLogs = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
 
-    return true
-  })
+    return logs.filter((log) => {
+      const isBot = log.decision !== "ALLOW";
+      if (trafficFilter === "bot" && !isBot) return false;
+      if (trafficFilter === "legitimate" && isBot) return false;
 
-  const totalRequests = mockLogs.length
-  const totalPages = Math.ceil(filteredLogs.length / 10)
+      const status = decisionToStatus(log.decision);
+      if (statusFilter === "2xx" && (status < 200 || status >= 300)) return false;
+      if (statusFilter === "4xx" && (status < 400 || status >= 500)) return false;
+      if (statusFilter === "5xx" && status < 500) return false;
+
+      if (q) {
+        const ip = (log.src_ip ?? "").toLowerCase();
+        const path = (log.path ?? "").toLowerCase();
+        const ua = (log.ua ?? "").toLowerCase();
+        return ip.includes(q) || path.includes(q) || ua.includes(q);
+      }
+
+      return true;
+    });
+  }, [logs, trafficFilter, statusFilter, searchQuery]);
+
+  const PAGE_SIZE = 10;
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / PAGE_SIZE));
+
+  const pageLogs = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredLogs.slice(start, start + PAGE_SIZE);
+  }, [filteredLogs, currentPage]);
+
+  // If filters shrink results, keep page in range
+  if (currentPage > totalPages) {
+    // safe immediate clamp (no effect loops b/c totalPages stable per render)
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    setTimeout(() => setCurrentPage(totalPages), 0);
+  }
 
   return (
     <Card>
@@ -307,8 +215,8 @@ export function RequestLogsTable() {
             <CardTitle>Live Logs</CardTitle>
             <div className="flex items-center gap-2">
               <span className="relative flex h-2.5 w-2.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75"></span>
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500"></span>
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-green-500" />
               </span>
               <span className="text-sm text-green-600 dark:text-green-400 font-medium">Live</span>
             </div>
@@ -316,7 +224,7 @@ export function RequestLogsTable() {
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Select value={trafficFilter} onValueChange={setTrafficFilter}>
+            <Select value={trafficFilter} onValueChange={(v) => { setTrafficFilter(v as TrafficFilter); setCurrentPage(1); }}>
               <SelectTrigger className="w-[150px]">
                 <SelectValue placeholder="All Requests" />
               </SelectTrigger>
@@ -327,7 +235,7 @@ export function RequestLogsTable() {
               </SelectContent>
             </Select>
 
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v as StatusFilter); setCurrentPage(1); }}>
               <SelectTrigger className="w-[120px]">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
@@ -342,45 +250,62 @@ export function RequestLogsTable() {
             <div className="relative">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Search IP or path..."
+                placeholder="Search IP, path, UA..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9 w-[180px]"
+                onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                className="pl-9 w-[220px]"
               />
             </div>
           </div>
         </div>
       </CardHeader>
+
       <CardContent>
+        {error ? (
+          <div className="mb-4 rounded-md border p-3 text-sm text-red-500">
+            Stats error: {error}
+          </div>
+        ) : null}
+
         <div className="rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[180px]">Timestamp</TableHead>
-                <TableHead className="w-[80px]">Method</TableHead>
+                <TableHead className="w-[110px]">Time</TableHead>
                 <TableHead>Path</TableHead>
-                <TableHead className="w-[130px]">IP Address</TableHead>
+                <TableHead className="w-[140px]">IP Address</TableHead>
                 <TableHead>User Agent</TableHead>
-                <TableHead className="w-[100px]">Backend</TableHead>
-                <TableHead className="w-[100px]">Response</TableHead>
+                <TableHead className="w-[90px]">Backend</TableHead>
+                <TableHead className="w-[100px]">Score</TableHead>
+                <TableHead className="w-[100px]">Decision</TableHead>
                 <TableHead className="w-[80px]">Status</TableHead>
-                <TableHead className="w-[120px]">Bot Score</TableHead>
+                <TableHead className="w-[140px]">Bot Score</TableHead>
                 <TableHead className="w-[90px]">Action</TableHead>
-                <TableHead className="w-[40px]"></TableHead>
+                <TableHead className="w-[40px]" />
               </TableRow>
             </TableHeader>
+
             <TableBody>
-              {filteredLogs.map((log) => (
-                <LogRow key={log.id} log={log} />
-              ))}
+              {pageLogs.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={11} className="py-8 text-center text-muted-foreground">
+                    No logs match your filters.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                pageLogs.map((log, idx) => (
+                  <LogRow key={`${log.ts}-${idx}`} log={log} index={idx} />
+                ))
+              )}
             </TableBody>
           </Table>
         </div>
 
         <div className="mt-4 flex items-center justify-between">
           <p className="text-sm text-muted-foreground">
-            Showing {filteredLogs.length} of {totalRequests} requests
+            Showing {pageLogs.length} of {filteredLogs.length} (from {totalRequests.toLocaleString()} total)
           </p>
+
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
@@ -390,14 +315,16 @@ export function RequestLogsTable() {
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
+
             <span className="text-sm text-muted-foreground">
-              Page {currentPage} of {totalPages || 1}
+              Page {currentPage} of {totalPages}
             </span>
+
             <Button
               variant="outline"
               size="sm"
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages || totalPages === 0}
+              disabled={currentPage >= totalPages}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -405,5 +332,5 @@ export function RequestLogsTable() {
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }

@@ -2,6 +2,8 @@ import csv
 import random
 import time
 from typing import Dict, Any, List
+import os
+
 
 import requests
 
@@ -10,7 +12,11 @@ import requests
 EDGE_URL = "http://localhost:3000/api/edge"   # your Vercel dev API
 CSV_PATH = "UNSW-NB15_clean.csv"              # path to your cleaned dataset
 
-NUM_ROWS_TO_SEND = 500                        # <-- how many rows to send total
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CSV_PATH = os.path.join(BASE_DIR, "UNSW-NB15_clean.csv")
+
+
+NUM_ROWS_TO_SEND = 2000                  # <-- how many rows to send total
 SLEEP_SECONDS = 0.05                          # 0.00 = max speed, 0.05 nice for dashboard
 
 # Probability that a request is "bot-like" (affects UA + IP selection bias)

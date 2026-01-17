@@ -1,38 +1,51 @@
-"use client"
+"use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend } from "recharts"
+import { useMemo } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ResponsiveContainer, Legend } from "recharts";
+import { useLiveStats } from "@/lib/useLiveStats";
 
-const trafficData = [
-  { day: "Mon", blocked: 18500, allowed: 2100 },
-  { day: "Tue", blocked: 21200, allowed: 2450 },
-  { day: "Wed", blocked: 19800, allowed: 1980 },
-  { day: "Thu", blocked: 24100, allowed: 2890 },
-  { day: "Fri", blocked: 22400, allowed: 2650 },
-  { day: "Sat", blocked: 16800, allowed: 1540 },
-  { day: "Sun", blocked: 15200, allowed: 1320 },
-]
+type Point = {
+  t: number;
+  time: string;
+  total: number;
+  allow: number;
+  bot: number; // REROUTE + BLOCK
+};
 
 const chartConfig = {
-  blocked: {
-    label: "Blocked",
-    color: "hsl(0, 85%, 55%)",
-  },
-  allowed: {
-    label: "Allowed",
-    color: "hsl(45, 100%, 50%)",
-  },
-}
+  blocked: { label: "Blocked/Rerouted", color: "hsl(0, 85%, 55%)" },
+  allowed: { label: "Allowed", color: "hsl(45, 100%, 50%)" },
+};
 
 export function BotTrafficTimeline() {
+  const { data, error } = useLiveStats(1000);
+
+  // Use the 10-minute bucketed series from /api/stats
+  const trafficData = useMemo(() => {
+    const series: Point[] = (data as any)?.series10m ?? [];
+    return series.map((p) => ({
+      time: p.time,
+      blocked: p.bot,   // currently bot = REROUTE+BLOCK
+      allowed: p.allow, // allow = ALLOW
+    }));
+  }, [data]);
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Bot Traffic - Last 7 Days</CardTitle>
-        <CardDescription>Stacked view of blocked vs allowed bot requests</CardDescription>
+        <CardTitle>Bot Traffic - Last 10 Minutes</CardTitle>
+        <CardDescription>Stacked view of blocked/rerouted vs allowed requests</CardDescription>
       </CardHeader>
+
       <CardContent>
+        {error ? (
+          <div className="mb-4 rounded-md border p-3 text-sm text-red-500">
+            Stats error: {error}
+          </div>
+        ) : null}
+
         <ChartContainer config={chartConfig} className="h-[350px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={trafficData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
@@ -41,23 +54,32 @@ export function BotTrafficTimeline() {
                   <stop offset="5%" stopColor="hsl(0, 85%, 55%)" stopOpacity={0.8} />
                   <stop offset="95%" stopColor="hsl(0, 85%, 55%)" stopOpacity={0.1} />
                 </linearGradient>
+
                 <linearGradient id="allowedGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="hsl(45, 100%, 50%)" stopOpacity={0.8} />
                   <stop offset="95%" stopColor="hsl(45, 100%, 50%)" stopOpacity={0.1} />
                 </linearGradient>
               </defs>
+
               <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-              <XAxis dataKey="day" tick={{ fontSize: 12 }} className="text-muted-foreground" />
-              <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" />
+              <XAxis
+                dataKey="time"
+                tick={{ fontSize: 12 }}
+                className="text-muted-foreground"
+                interval={20} // fewer labels
+              />
+              <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" allowDecimals={false} />
               <ChartTooltip content={<ChartTooltipContent />} />
               <Legend />
+
               <Area
                 type="monotone"
                 dataKey="blocked"
                 stackId="1"
                 stroke="hsl(0, 85%, 55%)"
                 fill="url(#blockedGradient)"
-                name="Blocked"
+                name="Blocked/Rerouted"
+                isAnimationActive={false} // keep it stable
               />
               <Area
                 type="monotone"
@@ -66,11 +88,12 @@ export function BotTrafficTimeline() {
                 stroke="hsl(45, 100%, 50%)"
                 fill="url(#allowedGradient)"
                 name="Allowed"
+                isAnimationActive={false}
               />
             </AreaChart>
           </ResponsiveContainer>
         </ChartContainer>
       </CardContent>
     </Card>
-  )
+  );
 }

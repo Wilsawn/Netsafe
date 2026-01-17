@@ -7,10 +7,14 @@ export type LiveStatEvent = {
   attack_score: number;
   decision: "ALLOW" | "REROUTE" | "BLOCK" | string;
   chosen_backend: "A" | "B" | "C" | null;
-  src_ip?: string;
+
+  // ✅ add these
+  src_ip?: string | null;
+  path?: string | null;
+  ua?: string | null;
 };
 
-export type TrafficPoint = {
+export type Point = {
   t: number;
   time: string;
   total: number;
@@ -21,12 +25,13 @@ export type TrafficPoint = {
 export type LiveStats = {
   totals: { ALLOW: number; REROUTE: number; BLOCK: number };
   per_backend: { A: number; B: number; C: number };
+
   recent: LiveStatEvent[];
   recent_count?: number;
 
-  // NEW
-  series10s: TrafficPoint[];
-  series10m: TrafficPoint[];
+  // ✅ if your /api/stats returns these
+  series10s?: Point[];
+  series10m?: Point[];
 };
 
 export function useLiveStats(pollMs = 1000) {
@@ -39,12 +44,8 @@ export function useLiveStats(pollMs = 1000) {
     async function tick() {
       try {
         const res = await fetch("/api/stats", { cache: "no-store" });
-
-        // ✅ THIS LINE IS THE IMPORTANT PART
-        const json: LiveStats = await res.json();
-
-        if (!res.ok) throw new Error((json as any)?.error || "Failed to fetch /api/stats");
-
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || "Failed to fetch /api/stats");
         if (alive) {
           setData(json);
           setError(null);
@@ -56,7 +57,6 @@ export function useLiveStats(pollMs = 1000) {
 
     tick();
     const id = setInterval(tick, pollMs);
-
     return () => {
       alive = false;
       clearInterval(id);

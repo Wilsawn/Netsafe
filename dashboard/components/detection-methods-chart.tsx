@@ -1,77 +1,94 @@
-"use client"
+"use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from "recharts"
+import { useMemo } from "react";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend } from "recharts";
+import { useLiveStats } from "@/lib/useLiveStats";
 
-interface DetectionMethod {
-  name: string
-  value: number
-  color: string
-}
-
-const detectionData: DetectionMethod[] = [
-  { name: "ML Model", value: 45, color: "hsl(210, 100%, 50%)" },
-  { name: "Rate Limiting", value: 28, color: "hsl(150, 80%, 45%)" },
-  { name: "User Agent", value: 18, color: "hsl(45, 100%, 50%)" },
-  { name: "Behavior Analysis", value: 9, color: "hsl(280, 80%, 55%)" },
-]
-
-const chartConfig = {
-  mlModel: {
-    label: "ML Model",
-    color: "hsl(210, 100%, 50%)",
-  },
-  rateLimiting: {
-    label: "Rate Limiting",
-    color: "hsl(150, 80%, 45%)",
-  },
-  userAgent: {
-    label: "User Agent",
-    color: "hsl(45, 100%, 50%)",
-  },
-  behaviorAnalysis: {
-    label: "Behavior Analysis",
-    color: "hsl(280, 80%, 55%)",
-  },
-}
+const COLORS = {
+  blocked: "hsl(0, 85%, 55%)",
+  reroute: "hsl(25, 95%, 55%)",
+  A: "hsl(210, 100%, 50%)",
+  B: "hsl(145, 70%, 45%)",
+  C: "hsl(270, 70%, 55%)",
+};
 
 export function DetectionMethodsChart() {
+  const { data, error } = useLiveStats(1000);
+
+  const pieData = useMemo(() => {
+    if (!data) return [];
+
+    const blocked = data.totals?.BLOCK ?? 0;
+    const reroute = data.totals?.REROUTE ?? 0;
+
+    const backendA = data.per_backend?.A ?? 0;
+    const backendB = data.per_backend?.B ?? 0;
+    const backendC = data.per_backend?.C ?? 0;
+
+    return [
+      { name: "Blocked", value: blocked, color: COLORS.blocked },
+      { name: "Rerouted", value: reroute, color: COLORS.reroute },
+      { name: "Allowed → Backend A", value: backendA, color: COLORS.A },
+      { name: "Allowed → Backend B", value: backendB, color: COLORS.B },
+      { name: "Allowed → Backend C", value: backendC, color: COLORS.C },
+    ].filter((x) => x.value > 0); // hide empty slices
+  }, [data]);
+
+  const chartConfig = {
+    blocked: { label: "Blocked", color: COLORS.blocked },
+    reroute: { label: "Rerouted", color: COLORS.reroute },
+    A: { label: "Backend A", color: COLORS.A },
+    B: { label: "Backend B", color: COLORS.B },
+    C: { label: "Backend C", color: COLORS.C },
+  };
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Detection Methods</CardTitle>
-        <CardDescription>Breakdown by detection technique</CardDescription>
+        <CardTitle>Traffic Decisions</CardTitle>
+        <CardDescription>Live breakdown of routing and blocking actions</CardDescription>
       </CardHeader>
+
       <CardContent>
-        <ChartContainer config={chartConfig} className="h-[300px] w-full">
+        {error && (
+          <div className="mb-4 rounded-md border p-3 text-sm text-red-500">
+            Stats error: {error}
+          </div>
+        )}
+
+        <ChartContainer config={chartConfig} className="h-[320px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
-                data={detectionData}
+                data={pieData}
                 cx="50%"
                 cy="50%"
-                innerRadius={60}
-                outerRadius={100}
+                innerRadius={70}
+                outerRadius={110}
                 paddingAngle={2}
                 dataKey="value"
-                label={({ name, value }) => `${name}: ${value}%`}
+                label={({ name, value }) => `${name}: ${value}`}
                 labelLine={false}
               >
-                {detectionData.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} />
+                {pieData.map((entry, i) => (
+                  <Cell key={i} fill={entry.color} />
                 ))}
               </Pie>
+
               <ChartTooltip content={<ChartTooltipContent />} />
+
               <Legend
                 verticalAlign="bottom"
-                height={36}
-                formatter={(value) => <span className="text-sm text-muted-foreground">{value}</span>}
+                formatter={(value) => (
+                  <span className="text-sm text-muted-foreground">{value}</span>
+                )}
               />
             </PieChart>
           </ResponsiveContainer>
         </ChartContainer>
       </CardContent>
     </Card>
-  )
+  );
 }

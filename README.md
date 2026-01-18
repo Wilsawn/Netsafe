@@ -1,1 +1,1 @@
-NetSafe is an intelligent edge load balancer built on Vercel's Edge Network that combines traditional load balancing with AI-powered bot detection. The system intelligently routes incoming traffic across multiple backend servers while simultaneously identifying and blocking malicious bot traffic in real-time.
+NetSafe is an intelligent edge load balancer built on Vercel’s Edge Network, combining real-time traffic routing with AI-powered bot detection to block malicious requests before they reach backend servers.
